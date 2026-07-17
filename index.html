@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quick Join</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel-hover: #22262f;
+    --text: #e8eaed;
+    --muted: #8a91a0;
+    --accent: #4c8bf5;
+    --accent-hover: #6ba1ff;
+    --border: #2a2f3a;
+    --zoom: #2d8cff;
+    --webex: #00bceb;
+    --meet: #00ac47;
+    --teams: #5059c9;
+    --success: #34c759;
+    --danger: #ff3b30;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 20px;
+    min-height: 100vh;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 640px;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .section {
+    margin-bottom: 28px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+
+  /* Paste bar */
+  .paste-wrap {
+    position: relative;
+    display: flex;
+    gap: 8px;
+  }
+
+  .paste-input {
+    flex: 1;
+    padding: 14px 16px;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: inherit;
+  }
+
+  .paste-input:focus {
+    border-color: var(--accent);
+    background: var(--panel-hover);
+  }
+
+  .paste-input::placeholder {
+    color: var(--muted);
+  }
+
+  .join-btn {
+    padding: 0 22px;
+    background: var(--accent);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    font-family: inherit;
+    white-space: nowrap;
+  }
+
+  .join-btn:hover:not(:disabled) { background: var(--accent-hover); }
+  .join-btn:active:not(:disabled) { transform: scale(0.97); }
+  .join-btn:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  .detected {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    min-height: 18px;
+    padding-left: 4px;
+  }
+
+  .detected.zoom { color: var(--zoom); }
+  .detected.webex { color: var(--webex); }
+  .detected.meet { color: var(--meet); }
+  .detected.teams { color: var(--teams); }
+  .detected.error { color: var(--danger); }
+
+  /* Quick-join grid */
+  .quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .quick-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.05s;
+    text-align: left;
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+  }
+
+  .quick-btn:hover {
+    background: var(--panel-hover);
+    border-color: var(--accent);
+  }
+
+  .quick-btn:active {
+    transform: scale(0.98);
+  }
+
+  .platform-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .platform-badge.zoom { background: var(--zoom); }
+  .platform-badge.webex { background: var(--webex); }
+  .platform-badge.meet { background: var(--meet); }
+  .platform-badge.teams { background: var(--teams); }
+
+  .btn-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .btn-title {
+    font-weight: 600;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .btn-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  footer {
+    margin-top: auto;
+    padding-top: 40px;
+    color: var(--muted);
+    font-size: 12px;
+    text-align: center;
+  }
+
+  footer kbd {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-family: -apple-system-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+  }
+
+  @media (max-width: 480px) {
+    body { padding: 20px 12px; }
+    h1 { font-size: 22px; }
+    .quick-grid { grid-template-columns: 1fr; }
+    .paste-wrap { flex-direction: column; }
+    .join-btn { padding: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>⚡ Quick Join</h1>
+    <div class="subtitle">Fast fallback for reconnecting to meetings</div>
+  </header>
+
+  <!-- ===================================================================
+       MEETING CONFIG — edit this block to add/remove quick-join buttons.
+       Each entry: { name, url, subtitle (optional) }
+       URL can be any of:
+         - zoommtg://... or https://*.zoom.us/j/...
+         - webex://... or https://*.webex.com/...
+         - https://meet.google.com/xxx-xxxx-xxx
+         - msteams://... or https://teams.microsoft.com/...
+       Platform is auto-detected from the URL.
+       =================================================================== -->
+  <script id="meeting-config" type="application/json">
+  {
+    "meetings": [
+      {
+        "name": "Example Zoom Standup",
+        "subtitle": "Daily 9:00 AM",
+        "url": "https://zoom.us/j/1234567890?pwd=example"
+      },
+      {
+        "name": "Example Webex Room",
+        "subtitle": "Client sync",
+        "url": "https://example.webex.com/meet/room"
+      },
+      {
+        "name": "Example Google Meet",
+        "subtitle": "Team weekly",
+        "url": "https://meet.google.com/abc-defg-hij"
+      },
+      {
+        "name": "Example Teams (pending login)",
+        "subtitle": "Once Teams is set up",
+        "url": "https://teams.microsoft.com/l/meetup-join/..."
+      }
+    ]
+  }
+  </script>
+  <!-- =================================================================== -->
+
+  <div class="section">
+    <div class="section-label">Paste a meeting link</div>
+    <div class="paste-wrap">
+      <input
+        id="paste-input"
+        class="paste-input"
+        type="text"
+        placeholder="Paste any Zoom, Webex, Meet, or Teams URL…"
+        autofocus
+        autocomplete="off"
+        spellcheck="false">
+      <button id="join-btn" class="join-btn" disabled>Join</button>
+    </div>
+    <div id="detected" class="detected">&nbsp;</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Quick join</div>
+    <div id="quick-grid" class="quick-grid"></div>
+  </div>
+
+  <footer>
+    Press <kbd>⌘V</kbd> to paste · <kbd>Enter</kbd> to join · <kbd>Esc</kbd> to clear
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Platform detection ----------
+  const PLATFORMS = {
+    zoom: {
+      label: 'Zoom',
+      badge: 'Z',
+      cls: 'zoom',
+      // Matches zoom.us / *.zoom.us / zoommtg:// / zoomus://
+      test: (u) =>
+        /^zoommtg:/i.test(u) ||
+        /^zoomus:/i.test(u) ||
+        /^https?:\/\/([a-z0-9-]+\.)?zoom\.us\//i.test(u),
+      // Convert https://zoom.us/j/1234?pwd=abc → zoommtg://zoom.us/join?confno=1234&pwd=abc
+      toDeepLink: (u) => {
+        if (/^zoommtg:/i.test(u) || /^zoomus:/i.test(u)) return u;
+        try {
+          const url = new URL(u);
+          // Handle /j/{id} or /wc/join/{id} or /meeting/{id}
+          const m = url.pathname.match(/\/(?:j|wc\/join|meeting)\/(\d+)/i);
+          if (!m) return u; // fall back to https
+          const confno = m[1];
+          const pwd = url.searchParams.get('pwd') || '';
+          const host = url.hostname; // preserve subdomain (e.g. company.zoom.us)
+          const params = new URLSearchParams({ action: 'join', confno });
+          if (pwd) params.set('pwd', pwd);
+          return `zoommtg://${host}/join?${params.toString()}`;
+        } catch (_) {
+          return u;
+        }
+      }
+    },
+    webex: {
+      label: 'Webex',
+      badge: 'W',
+      cls: 'webex',
+      test: (u) =>
+        /^webex:/i.test(u) ||
+        /^wbx:/i.test(u) ||
+        /^https?:\/\/([a-z0-9-]+\.)?webex\.com\//i.test(u),
+      // Webex has no clean https→deep-link conversion; let https URL do its own hand-off
+      toDeepLink: (u) => u
+    },
+    meet: {
+      label: 'Google Meet',
+      badge: 'G',
+      cls: 'meet',
+      test: (u) => /^https?:\/\/meet\.google\.com\//i.test(u),
+      toDeepLink: (u) => u
+    },
+    teams: {
+      label: 'Microsoft Teams',
+      badge: 'T',
+      cls: 'teams',
+      test: (u) =>
+        /^msteams:/i.test(u) ||
+        /^https?:\/\/teams\.(microsoft|live)\.com\//i.test(u),
+      // Convert https://teams.microsoft.com/l/... → msteams:/l/...
+      toDeepLink: (u) => {
+        if (/^msteams:/i.test(u)) return u;
+        try {
+          const url = new URL(u);
+          // Teams registers msteams:/<path> — pathname already begins with '/'
+          // so we must NOT add another slash, or we get msteams://path (wrong).
+          return `msteams:${url.pathname}${url.search}${url.hash}`;
+        } catch (_) {
+          return u;
+        }
+      }
+    }
+  };
+
+  function detectPlatform(url) {
+    if (!url) return null;
+    const u = url.trim();
+    for (const key of Object.keys(PLATFORMS)) {
+      if (PLATFORMS[key].test(u)) return key;
+    }
+    return null;
+  }
+
+  function normalizeUrl(input) {
+    let u = (input || '').trim();
+    if (!u) return '';
+    // Strip surrounding <angle brackets> or quotes commonly added by chat apps
+    u = u.replace(/^[<"'\s]+|[>"'\s]+$/g, '');
+    return u;
+  }
+
+  function launch(url) {
+    const platform = detectPlatform(url);
+    if (!platform) return false;
+    const deepLink = PLATFORMS[platform].toDeepLink(url);
+    // window.location.href handles custom-scheme protocol handoff on macOS
+    // and https URLs open in the default browser tab.
+    window.location.href = deepLink;
+    return true;
+  }
+
+  // ---------- DOM refs ----------
+  const $paste = document.getElementById('paste-input');
+  const $join = document.getElementById('join-btn');
+  const $detected = document.getElementById('detected');
+  const $grid = document.getElementById('quick-grid');
+
+  // ---------- Paste-to-join wiring ----------
+  function updateDetected() {
+    const url = normalizeUrl($paste.value);
+    if (!url) {
+      $detected.textContent = '\u00A0';
+      $detected.className = 'detected';
+      $join.disabled = true;
+      return;
+    }
+    const platform = detectPlatform(url);
+    if (platform) {
+      $detected.textContent = `✓ ${PLATFORMS[platform].label} link detected`;
+      $detected.className = `detected ${PLATFORMS[platform].cls}`;
+      $join.disabled = false;
+    } else {
+      $detected.textContent = 'Not a recognized meeting URL';
+      $detected.className = 'detected error';
+      $join.disabled = true;
+    }
+  }
+
+  function joinFromPaste() {
+    const url = normalizeUrl($paste.value);
+    if (!url) return;
+    if (launch(url)) {
+      // Visual confirm; keep the URL for one-click retry
+      $detected.textContent = '→ Launching…';
+    }
+  }
+
+  $paste.addEventListener('input', updateDetected);
+  $paste.addEventListener('paste', () => {
+    // Update after paste event flushes to value
+    setTimeout(updateDetected, 0);
+  });
+  $paste.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !$join.disabled) {
+      e.preventDefault();
+      joinFromPaste();
+    } else if (e.key === 'Escape') {
+      $paste.value = '';
+      updateDetected();
+    }
+  });
+  $join.addEventListener('click', joinFromPaste);
+
+  // ---------- Build quick-join grid from config ----------
+  function loadConfig() {
+    try {
+      const raw = document.getElementById('meeting-config').textContent;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('Invalid meeting-config JSON:', e);
+      return { meetings: [] };
+    }
+  }
+
+  function renderGrid() {
+    const config = loadConfig();
+    const meetings = Array.isArray(config.meetings) ? config.meetings : [];
+
+    if (!meetings.length) {
+      $grid.innerHTML = '<div class="empty-state">No saved meetings. Edit the JSON block at the top of index.html to add quick-join buttons.</div>';
+      return;
+    }
+
+    $grid.innerHTML = '';
+    meetings.forEach((m) => {
+      const platform = detectPlatform(m.url) || 'zoom';
+      const p = PLATFORMS[platform];
+
+      const btn = document.createElement('button');
+      btn.className = 'quick-btn';
+      btn.type = 'button';
+
+      const badge = document.createElement('div');
+      badge.className = `platform-badge ${p.cls}`;
+      badge.textContent = p.badge;
+
+      const content = document.createElement('div');
+      content.className = 'btn-content';
+
+      const title = document.createElement('div');
+      title.className = 'btn-title';
+      title.textContent = m.name || p.label;
+
+      const sub = document.createElement('div');
+      sub.className = 'btn-subtitle';
+      sub.textContent = m.subtitle || p.label;
+
+      content.appendChild(title);
+      content.appendChild(sub);
+      btn.appendChild(badge);
+      btn.appendChild(content);
+
+      btn.addEventListener('click', () => launch(m.url));
+      $grid.appendChild(btn);
+    });
+  }
+
+  renderGrid();
+
+  // Auto-focus paste field on any typing anywhere
+  document.addEventListener('keydown', (e) => {
+    if (document.activeElement !== $paste &&
+        !e.metaKey && !e.ctrlKey && !e.altKey &&
+        (e.key.length === 1 || e.key === 'Backspace')) {
+      $paste.focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>
