@@ -211,6 +211,13 @@
     margin-top: 2px;
   }
 
+  .btn-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-style: italic;
+  }
+
   /* Start-a-new-Zoom card */
   .start-card {
     grid-column: 1 / -1;
@@ -237,11 +244,19 @@
     border-radius: 10px;
   }
 
+  .share-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+    font-weight: 600;
+  }
+
   .share-row {
     display: flex;
     gap: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed var(--border);
   }
 
   .share-input {
@@ -549,12 +564,24 @@
   }
 
   // ---------- Zoom "Start new meeting" (PMI) ----------
+  //
+  // The documented host-start URL is:
+  //   zoommtg://zoom.us/start?action=start&confno=<PMI>
+  //
+  // Zoom's desktop app requires action=start explicitly — without it,
+  // the URL routes as a join (which puts you in the lobby unless the
+  // meeting is already running). Adding action=start tells Zoom
+  // "launch this as host, using the signed-in account on this Mac".
+  //
+  // Requires: Zoom desktop app installed and signed in as the PMI's
+  // owner on the machine that clicks Start. If the account isn't
+  // signed in, Zoom will drop the caller into the lobby of a joining
+  // attempt instead.
   function startZoomPmi(pmi) {
     const clean = String(pmi || '').replace(/\D/g, '');
     if (!clean) return false;
-    // Host-side start URL. Zoom desktop app takes this and starts the
-    // meeting as the signed-in host on this Mac.
-    window.location.href = `zoommtg://zoom.us/start?confno=${clean}`;
+    window.location.href =
+      `zoommtg://zoom.us/start?action=start&confno=${clean}`;
     return true;
   }
 
@@ -661,8 +688,14 @@
     sub.textContent = configured
       ? (m.subtitle || 'Uses your Personal Meeting Room')
       : 'Not configured yet — add your Zoom PMI to index.html';
+    const hint = document.createElement('div');
+    hint.className = 'btn-hint';
+    hint.textContent = configured
+      ? 'You must be signed in to Zoom on this Mac as the host account.'
+      : '';
     content.appendChild(title);
     content.appendChild(sub);
+    if (configured) content.appendChild(hint);
 
     const startBtn = document.createElement('button');
     startBtn.className = 'join-btn start-btn';
@@ -677,6 +710,11 @@
 
     // Share URL row (only if configured)
     if (configured) {
+      const shareLabel = document.createElement('div');
+      shareLabel.className = 'share-label';
+      shareLabel.textContent = 'Share this link with attendees:';
+      card.appendChild(shareLabel);
+
       const share = document.createElement('div');
       share.className = 'share-row';
 
