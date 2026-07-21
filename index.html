@@ -211,6 +211,77 @@
     margin-top: 2px;
   }
 
+  /* Start-a-new-Zoom card */
+  .start-card {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+
+  .start-card-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .start-card .btn-content { flex: 1; min-width: 0; }
+
+  .start-btn {
+    padding: 10px 18px;
+    font-size: 14px;
+    border-radius: 10px;
+  }
+
+  .share-row {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+  }
+
+  .share-input {
+    flex: 1;
+    padding: 10px 12px;
+    background: #0f1115;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: -apple-system-monospace, "SF Mono", Menlo, monospace;
+    outline: none;
+  }
+
+  .share-input:focus {
+    border-color: var(--accent);
+  }
+
+  .copy-btn {
+    padding: 0 14px;
+    background: var(--panel-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+
+  .copy-btn:hover { border-color: var(--accent); }
+  .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+  @media (max-width: 480px) {
+    .share-row { flex-direction: column; }
+    .copy-btn { padding: 10px; }
+  }
+
   .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -257,8 +328,15 @@
 
   <!-- ===================================================================
        MEETING CONFIG — edit this block to add/remove quick-join buttons.
-       Each entry: { name, url, subtitle (optional) }
-       URL can be any of:
+       Each entry: { name, url, subtitle (optional), kind (optional) }
+
+       kind values:
+         - (omitted) = normal quick-join. `url` is required.
+         - "start-zoom-pmi" = start a NEW meeting in your Zoom PMI (uses
+           the currently signed-in Zoom app). `zoomPmi` is required.
+           `url` should be your PMI join URL (for the share/copy affordance).
+
+       URL formats accepted for normal quick-join:
          - zoommtg://... or https://*.zoom.us/j/...
          - webex://... or https://*.webex.com/...
          - https://meet.google.com/xxx-xxxx-xxx
@@ -269,24 +347,11 @@
   {
     "meetings": [
       {
-        "name": "Example Zoom Standup",
-        "subtitle": "Daily 9:00 AM",
-        "url": "https://zoom.us/j/1234567890?pwd=example"
-      },
-      {
-        "name": "Example Webex Room",
-        "subtitle": "Client sync",
-        "url": "https://example.webex.com/meet/room"
-      },
-      {
-        "name": "Example Google Meet",
-        "subtitle": "Team weekly",
-        "url": "https://meet.google.com/abc-defg-hij"
-      },
-      {
-        "name": "Example Teams (pending login)",
-        "subtitle": "Once Teams is set up",
-        "url": "https://teams.microsoft.com/l/meetup-join/..."
+        "kind": "start-zoom-pmi",
+        "name": "Start a new Zoom meeting",
+        "subtitle": "iBelieveInSwordfish PMR — share the link below",
+        "zoomPmi": "3057366122",
+        "url": "https://us06web.zoom.us/j/3057366122?pwd=K5bVggrl6681SgkaR8IFlURGsGC9kQ.1"
       }
     ]
   }
@@ -483,6 +548,44 @@
     }
   }
 
+  // ---------- Zoom "Start new meeting" (PMI) ----------
+  function startZoomPmi(pmi) {
+    const clean = String(pmi || '').replace(/\D/g, '');
+    if (!clean) return false;
+    // Host-side start URL. Zoom desktop app takes this and starts the
+    // meeting as the signed-in host on this Mac.
+    window.location.href = `zoommtg://zoom.us/start?confno=${clean}`;
+    return true;
+  }
+
+  function normalizeShareUrl(url, pmi) {
+    if (url) return url;
+    const clean = String(pmi || '').replace(/\D/g, '');
+    return clean ? `https://zoom.us/j/${clean}` : '';
+  }
+
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (_) {
+      // Fallback: temp textarea
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return true;
+      } catch (__) {
+        return false;
+      }
+    }
+  }
+
   function renderGrid() {
     const config = loadConfig();
     const meetings = Array.isArray(config.meetings) ? config.meetings : [];
@@ -494,6 +597,13 @@
 
     $grid.innerHTML = '';
     meetings.forEach((m) => {
+      // "start-zoom-pmi" is a special card: starts the host's Zoom PMI
+      // and shows the shareable join URL with a Copy button.
+      if (m.kind === 'start-zoom-pmi') {
+        $grid.appendChild(buildStartZoomCard(m));
+        return;
+      }
+
       const platform = detectPlatform(m.url) || 'zoom';
       const p = PLATFORMS[platform];
 
@@ -524,6 +634,87 @@
       btn.addEventListener('click', () => launch(m.url));
       $grid.appendChild(btn);
     });
+  }
+
+  function buildStartZoomCard(m) {
+    const p = PLATFORMS.zoom;
+    const shareUrl = normalizeShareUrl(m.url, m.zoomPmi);
+    const configured = !!m.zoomPmi && /^\d+$/.test(String(m.zoomPmi).replace(/\D/g, ''));
+
+    const card = document.createElement('div');
+    card.className = 'start-card';
+
+    const row = document.createElement('div');
+    row.className = 'start-card-row';
+
+    const badge = document.createElement('div');
+    badge.className = `platform-badge ${p.cls}`;
+    badge.textContent = p.badge;
+
+    const content = document.createElement('div');
+    content.className = 'btn-content';
+    const title = document.createElement('div');
+    title.className = 'btn-title';
+    title.textContent = m.name || 'Start a new Zoom meeting';
+    const sub = document.createElement('div');
+    sub.className = 'btn-subtitle';
+    sub.textContent = configured
+      ? (m.subtitle || 'Uses your Personal Meeting Room')
+      : 'Not configured yet — add your Zoom PMI to index.html';
+    content.appendChild(title);
+    content.appendChild(sub);
+
+    const startBtn = document.createElement('button');
+    startBtn.className = 'join-btn start-btn';
+    startBtn.type = 'button';
+    startBtn.textContent = 'Start';
+    startBtn.disabled = !configured;
+
+    row.appendChild(badge);
+    row.appendChild(content);
+    row.appendChild(startBtn);
+    card.appendChild(row);
+
+    // Share URL row (only if configured)
+    if (configured) {
+      const share = document.createElement('div');
+      share.className = 'share-row';
+
+      const shareInput = document.createElement('input');
+      shareInput.type = 'text';
+      shareInput.readOnly = true;
+      shareInput.className = 'share-input';
+      shareInput.value = shareUrl;
+      shareInput.addEventListener('focus', () => shareInput.select());
+      shareInput.addEventListener('click', () => shareInput.select());
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.type = 'button';
+      copyBtn.textContent = 'Copy link';
+      copyBtn.addEventListener('click', async () => {
+        const ok = await copyToClipboard(shareUrl);
+        const orig = copyBtn.textContent;
+        copyBtn.textContent = ok ? 'Copied ✓' : 'Copy failed';
+        copyBtn.classList.toggle('copied', ok);
+        setTimeout(() => {
+          copyBtn.textContent = orig;
+          copyBtn.classList.remove('copied');
+        }, 1400);
+      });
+
+      share.appendChild(shareInput);
+      share.appendChild(copyBtn);
+      card.appendChild(share);
+
+      startBtn.addEventListener('click', () => {
+        startZoomPmi(m.zoomPmi);
+        startBtn.textContent = 'Starting…';
+        setTimeout(() => { startBtn.textContent = 'Start'; }, 2000);
+      });
+    }
+
+    return card;
   }
 
   renderGrid();
